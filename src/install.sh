@@ -1,0 +1,1 @@
+pip install -q kagglehub numpy pandas underthesea pytorch-metric-learning transformers
