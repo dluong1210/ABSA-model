@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from transformers import BertModel
-from pytorch_metric_learning.losses import NTXentLoss
+from pytorch_metric_learning.losses import NTXentLoss, SupConLoss
 from pytorch_metric_learning.samplers import MPerClassSampler
 
 infonce_criterion = nn.CrossEntropyLoss()
@@ -128,7 +128,8 @@ class SentimentClassification(nn.Module):
         BCE_loss = criterion(logits, targets)
         
         # contrastive loss 
-        loss_temp = NTXentLoss(temperature=0.2)
+        # loss_temp = NTXentLoss(temperature=0.2)
+        loss_temp = SupConLoss(temperature=0.2)
         contrastive_loss = self.cl_alpha * loss_temp(pooled_output, targets)
 
         loss = {
