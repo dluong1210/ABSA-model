@@ -160,7 +160,8 @@ def main():
         data_loader_train=aspect_train_loader,
         data_loader_valid=aspect_val_loader,
         epochs=conf['epochs'],
-        device=conf['device']
+        device=conf['device'], 
+        path_log=conf['log_path']
     )
 
     # Evaluate the model
@@ -196,7 +197,8 @@ def main():
         data_loader_valid=sentiment_val_loader, 
         epochs=epochs, 
         device=conf['device'],
-        task='classification'
+        task='classification', 
+        path_log=conf['log_path']
     )
 
     evaluate_model(model_sentiment, sentiment_test_loader, conf['device'])
