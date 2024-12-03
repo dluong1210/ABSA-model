@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from collections import defaultdict
 import copy
+import argparse 
 
 from transformers import AutoTokenizer, AutoModel, AutoConfig
 from dataset import get_data_from_raw, CustomDataset
@@ -14,6 +15,17 @@ from torch.utils.data import DataLoader
 import warnings
 from sklearn.exceptions import UndefinedMetricWarning
 
+def get_cmd():
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument('-epochs', '--epochs', default=10, type=int)
+    parser.add_argument('-layer_bert', '--num_hidden_layers_bert', default=6, type=int)
+    parser.add_argument('-cl_alpha', '--cl_alpha', default=0.2, type=float) # hyper weight for contrastive loss 
+    parser.add_argument('-log_path', '--log_path', default="", type=str)
+
+    args = parser.parse_args()
+    return args
+
 # Disable warnings from sklearn
 warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
 
@@ -21,21 +33,30 @@ categories = ["GENERAL", "CAMERA", "PERFORMANCE", "DESIGN","BATTERY","FEATURES",
 sentiment = ["Negative", "Positive", "Neutral"]
 
 conf = defaultdict(list)
+
+# collect hyperparams to dict: conf ~ config
+conf = defaultdict(list)
+
+paras = get_cmd().__dict__
+print(f'paras: {paras}')
+for p in paras: 
+    conf[p] = paras[p]
+
 conf['max_len'] = 256
-conf['batch_size'] = 32
+conf['batch_size'] = 32    
 conf['lr'] = 2e-5
 
 # conf['epochs'] = 8
-conf['epochs'] = 8
+# conf['epochs'] = 8
 conf['device'] = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-conf['num_hidden_layers_bert'] = 6
+# conf['num_hidden_layers_bert'] = 6
 conf['num_hidden_size_bert'] = 768
 conf['hidden_dim'] = 256
 
 # contrastive params
 conf['augment'] = 'FN'
 conf['noise_weight'] = 0.05
-conf['cl_alpha'] = 0.2
+# conf['cl_alpha'] = 0.2
 conf['classification_dim'] = 768
 conf['dropout'] = 0.3
 conf['temp'] = 0.2
@@ -43,16 +64,41 @@ conf['temp'] = 0.2
 def init_bert(conf, init_style='default'):
     print('starting init bert')
     if init_style == 'autoconfig': 
-        phobert_config = AutoConfig.from_pretrained("vinai/phobert-base-v2")
-        # default config in phobert 
-        print(f"default num_hidden_layers: {phobert_config.num_hidden_layers}")
-        print(f"default num_attention_heads: {phobert_config.num_attention_heads}")
-        print(f"default hidden_size: {phobert_config.hidden_size}")
-        print("-"*60) # clean 
-        # change config
-        phobert_config.num_hidden_layers = conf['num_hidden_layers_bert']
-        phobert_config.hidden_size = conf['num_hidden_size_bert']
-        phobert = AutoModel.from_config(phobert_config)
+        # phobert_config = AutoConfig.from_pretrained("vinai/phobert-base-v2")
+        # # default config in phobert 
+        # print(f"default num_hidden_layers: {phobert_config.num_hidden_layers}")
+        # print(f"default num_attention_heads: {phobert_config.num_attention_heads}")
+        # print(f"default hidden_size: {phobert_config.hidden_size}")
+        # print("-"*60) # clean 
+        # # change config
+        # phobert_config.num_hidden_layers = conf['num_hidden_layers_bert']
+        # phobert_config.hidden_size = conf['num_hidden_size_bert']
+        # phobert = AutoModel.from_config(phobert_config)
+
+        new_num_layers = conf['num_hidden_layers_bert']
+        config = AutoConfig.from_pretrained("vinai/phobert-base-v2")
+    
+        # save orginal layer 
+        original_num_layers = config.num_hidden_layers
+        config.num_hidden_layers = new_num_layers
+        
+        # original model 
+        phobert = AutoModel.from_pretrained("vinai/phobert-base-v2")
+        
+        # get current list transformer layer 
+        transformer_layers = phobert.encoder.layer
+        
+        if new_num_layers < original_num_layers:
+            phobert.encoder.layer = nn.ModuleList(transformer_layers[:new_num_layers])
+            print(f"Reduced number of layers to {new_num_layers}.")
+        
+        elif new_num_layers > original_num_layers:
+            additional_layers = []
+            for i in range(new_num_layers - original_num_layers):
+                # copy last layer -> new layer
+                additional_layers.append(transformer_layers[-1].__class__(config))
+            phobert.encoder.layer.extend(additional_layers)
+            print(f"Increased number of layers to {new_num_layers}. New layers initialized randomly.")
         
     if init_style == 'default':
         phobert = AutoModel.from_pretrained("vinai/phobert-base-v2")
@@ -60,6 +106,8 @@ def init_bert(conf, init_style='default'):
     print("done init bert")
 
     return phobert
+
+
 
 def main():
     # Load tokenizer
