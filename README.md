@@ -2,7 +2,7 @@
 
 Aspect-Based Sentiment Analysis (ABSA) for Vietnamese reviews using MinPhoBERT combined with Contrastive Learning.
 
-![Overall Model Architecture](https://github.com/dluong1210/ABSA-model/overall_model.png)
+![Overall Model Architecture](https://github.com/dluong1210/ABSA-model/blob/main/overall_model.png)
 
 ## 1. Installation
 
